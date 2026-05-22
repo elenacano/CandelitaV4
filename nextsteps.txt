@@ -1,0 +1,15 @@
+4. Predicción con IA (Día Probable)
+Esto es muy divertido y fácil de programar con lo que ya tienes:
+
+Idea: En la sección de Inicio, pon una frase: "Basado en vuestra racha, el próximo delicioso será... ¡Este jueves! 🔥".
+
+Lógica: Analiza los últimos 7 días. Si soléis registrar los fines de semana, la app os "pica" para que no perdáis la racha.
+
+5. Exportar "Anuario del Amor" 📖
+Al final del año (o del mes), podrías generar un pequeño resumen visual (una imagen o PDF) que diga:
+
+"Marzo fue nuestro mes más intenso con 15 tomas".
+
+"Nuestra hora favorita: 23:30".
+
+"Día más activo: Sábados".
