@@ -632,6 +632,175 @@ async function hashString(str) {
     const buf = await crypto.subtle.digest('SHA-256', enc.encode(str));
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
+
+// --- LEGACY USER DATA MIGRATION SYSTEM ---
+
+/**
+ * Link legacy user data to Firebase authenticated account
+ * Finds all activities with matching displayName and userId: null, then updates them
+ * @param {string} userId - Firebase user ID to link data to
+ * @param {string} displayName - Display name to match legacy activities
+ * @returns {Promise<number>} Number of activities linked
+ */
+async function linkLegacyData(userId, displayName) {
+    console.log(`🔄 Starting legacy data migration for user: ${displayName} (${userId})`);
+    
+    try {
+        // Query for legacy activities: matching usuario and userId is null
+        const legacyQuery = query(
+            collection(db, "tomas"),
+            where("usuario", "==", displayName),
+            where("userId", "==", null)
+        );
+        
+        const snapshot = await getDocs(legacyQuery);
+        const totalDocs = snapshot.size;
+        
+        console.log(`📊 Found ${totalDocs} legacy activities to migrate`);
+        
+        if (totalDocs === 0) {
+            return 0;
+        }
+        
+        // Firestore batch operations support max 500 operations per batch
+        const BATCH_SIZE = 500;
+        let linkedCount = 0;
+        let currentBatch = [];
+        
+        for (const docSnap of snapshot.docs) {
+            currentBatch.push(docSnap);
+            
+            // Process batch when it reaches BATCH_SIZE or it's the last document
+            if (currentBatch.length === BATCH_SIZE || linkedCount + currentBatch.length === totalDocs) {
+                const batch = db.batch ? db.batch() : null;
+                
+                if (!batch) {
+                    // Fallback: update documents individually if batch not available
+                    for (const doc of currentBatch) {
+                        await updateDoc(doc.ref, { userId: userId });
+                        linkedCount++;
+                    }
+                } else {
+                    // Use batch update for efficiency
+                    for (const doc of currentBatch) {
+                        batch.update(doc.ref, { userId: userId });
+                    }
+                    await batch.commit();
+                    linkedCount += currentBatch.length;
+                }
+                
+                console.log(`✅ Migrated ${linkedCount}/${totalDocs} activities`);
+                currentBatch = [];
+            }
+        }
+        
+        console.log(`✨ Migration complete! Linked ${linkedCount} activities to user ${userId}`);
+        
+        // Store migration status in localStorage to avoid re-prompting
+        localStorage.setItem(`migration_completed_${displayName}`, 'true');
+        
+        return linkedCount;
+        
+    } catch (error) {
+        console.error('❌ Error during legacy data migration:', error);
+        throw new Error(`Error al vincular datos: ${error.message}`);
+    }
+}
+
+/**
+ * Check if user has legacy data that can be migrated
+ * @param {string} displayName - Display name to check
+ * @returns {Promise<number>} Number of legacy activities found
+ */
+async function checkLegacyData(displayName) {
+    try {
+        const legacyQuery = query(
+            collection(db, "tomas"),
+            where("usuario", "==", displayName),
+            where("userId", "==", null),
+            limit(1)
+        );
+        
+        const snapshot = await getDocs(legacyQuery);
+        
+        if (snapshot.empty) {
+            return 0;
+        }
+        
+        // Get full count
+        const fullQuery = query(
+            collection(db, "tomas"),
+            where("usuario", "==", displayName),
+            where("userId", "==", null)
+        );
+        
+        const fullSnapshot = await getDocs(fullQuery);
+        return fullSnapshot.size;
+        
+    } catch (error) {
+        console.error('Error checking legacy data:', error);
+        return 0;
+    }
+}
+
+/**
+ * Check if migration has already been completed for this user
+ * @param {string} displayName - Display name to check
+ * @returns {boolean} True if migration was already completed
+ */
+function isMigrationCompleted(displayName) {
+    return localStorage.getItem(`migration_completed_${displayName}`) === 'true';
+}
+
+/**
+ * Show legacy user banner prompting to create account
+ */
+function showLegacyUserBanner() {
+    // Check if user is legacy (has localStorage name but no Firebase auth)
+    const legacyName = localStorage.getItem('nombreUsuario');
+    if (!legacyName || currentUser) {
+        return; // Not a legacy user or already authenticated
+    }
+    
+    // Check if banner was already dismissed
+    if (localStorage.getItem('legacy_banner_dismissed') === 'true') {
+        return;
+    }
+    
+    const banner = document.getElementById('legacyUserBanner');
+    if (banner) {
+        banner.style.display = 'flex';
+    }
+}
+
+/**
+ * Dismiss legacy user banner
+ */
+window.dismissLegacyBanner = function() {
+    const banner = document.getElementById('legacyUserBanner');
+    if (banner) {
+        banner.style.display = 'none';
+        localStorage.setItem('legacy_banner_dismissed', 'true');
+    }
+};
+
+/**
+ * Open registration modal with pre-filled display name for legacy users
+ */
+window.openRegistrationForLegacy = function() {
+    const legacyName = localStorage.getItem('nombreUsuario');
+    if (legacyName) {
+        // Open auth modal and switch to registration
+        openAuthModal();
+        showRegisterForm();
+        
+        // Pre-fill display name
+        const displayNameInput = document.getElementById('registerDisplayName');
+        if (displayNameInput) {
+            displayNameInput.value = legacyName;
+        }
+    }
+};
 // rango actual de la gráfica: 'week' | 'month' | 'year'
 window.chartRange = 'month';
 
@@ -713,6 +882,9 @@ window.addEventListener('load', async () => {
                 renderChart();
                 if (window.actualizarRacha) window.actualizarRacha();
                 if (window.listaListener) activityFeedUnsubscribe = window.listaListener();
+                
+                // Show legacy user banner prompting to create account
+                setTimeout(() => showLegacyUserBanner(), 1000);
             } else {
                 await openAuthModal();
             }
@@ -909,6 +1081,64 @@ async function handleRegister() {
     
     try {
         await registerUser(email, password, displayName);
+        
+        // Check for legacy data after successful registration
+        console.log('🔍 Checking for legacy data to migrate...');
+        
+        // Check if migration was already completed
+        if (isMigrationCompleted(displayName)) {
+            console.log('✅ Migration already completed for this user');
+            return;
+        }
+        
+        // Check if there's legacy data to migrate
+        const legacyCount = await checkLegacyData(displayName);
+        
+        if (legacyCount > 0) {
+            console.log(`📦 Found ${legacyCount} legacy activities`);
+            
+            // Show confirmation dialog
+            const confirmMigration = confirm(
+                `¡Encontramos ${legacyCount} actividad${legacyCount > 1 ? 'es' : ''} anterior${legacyCount > 1 ? 'es' : ''} con tu nombre!\n\n` +
+                `¿Quieres vincular${legacyCount > 1 ? 'las' : 'la'} a tu nueva cuenta?\n\n` +
+                `Esto te permitirá acceder a tu historial completo desde cualquier dispositivo.`
+            );
+            
+            if (confirmMigration && currentUser) {
+                try {
+                    // Show migration in progress
+                    if (registerBtn) {
+                        registerBtn.textContent = 'Vinculando datos...';
+                    }
+                    
+                    const linkedCount = await linkLegacyData(currentUser.uid, displayName);
+                    
+                    // Show success message
+                    alert(
+                        `✨ ¡Éxito!\n\n` +
+                        `Se han vinculado ${linkedCount} actividad${linkedCount > 1 ? 'es' : ''} a tu cuenta.\n\n` +
+                        `Tu historial completo ya está disponible.`
+                    );
+                    
+                    // Refresh data to show migrated activities
+                    setTimeout(() => {
+                        generateCalendar(displayName);
+                        renderRanking();
+                        renderChart();
+                        if (window.actualizarRacha) window.actualizarRacha();
+                    }, 500);
+                    
+                } catch (migrationError) {
+                    console.error('Migration error:', migrationError);
+                    alert('Hubo un error al vincular tus datos. Por favor, contacta con soporte.');
+                }
+            } else if (!confirmMigration) {
+                console.log('User declined migration');
+            }
+        } else {
+            console.log('No legacy data found for this user');
+        }
+        
         // onAuthStateChanged will handle the rest
     } catch (error) {
         console.error('Registration error:', error);
@@ -1121,18 +1351,23 @@ window.registrarToma = async () => {
         return;
     }
 
+    // Check if user is authenticated - required by Firebase Security Rules
+    if (!currentUser || !currentUser.uid) {
+        alert("Debes iniciar sesión para registrar una toma. Por favor, inicia sesión o regístrate.");
+        console.error("Cannot register toma: User not authenticated");
+        return;
+    }
+
     try {
         await addDoc(collection(db, "tomas"), {
-            userId: currentUser?.uid || null,
+            userId: currentUser.uid,
             usuario: u,
             userPhotoURL: getPhotoURLForCurrentContext(),
             fecha: serverTimestamp()
         });
 
-        if (currentUser?.uid) {
-            await updateUserStatsAfterToma(currentUser.uid, new Date());
-            await touchUserActivity(currentUser.uid);
-        }
+        await updateUserStatsAfterToma(currentUser.uid, new Date());
+        await touchUserActivity(currentUser.uid);
 
         window.celebrarToma();
         console.log("¡Toma registrada con éxito!");

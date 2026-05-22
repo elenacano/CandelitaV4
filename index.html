@@ -25,19 +25,38 @@
 </head>
 <body>
 
+    <!-- Legacy User Migration Banner -->
+    <div id="legacyUserBanner" class="legacy-banner" style="display: none;">
+        <div class="legacy-banner-content">
+            <div class="legacy-banner-icon">🔐</div>
+            <div class="legacy-banner-text">
+                <strong>¡Protege tus datos!</strong>
+                <p>Crea una cuenta para acceder desde cualquier dispositivo</p>
+            </div>
+            <div class="legacy-banner-actions">
+                <button onclick="openRegistrationForLegacy()" class="legacy-banner-btn-primary">
+                    Crear Cuenta
+                </button>
+                <button onclick="dismissLegacyBanner()" class="legacy-banner-btn-dismiss">
+                    ✕
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="nameModal" aria-hidden="true" role="dialog" aria-modal="true">
         <div class="modal-card">
-            <h2>Bienvenido a Candelita 🍧</h2>
+            <h2>Bienvenido a Candelita</h2>
             
             <!-- Login Form -->
             <div id="loginForm" style="display: block;">
                 <p style="margin-bottom: 15px;">Inicia sesión para continuar</p>
                 <input id="loginEmail" type="email" autocomplete="email" placeholder="Email"
-                       style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px;">
+                       style="width: 80%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px;">
                 <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Contraseña"
-                       style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px;">
+                       style="width: 80%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px;">
                 <div id="loginError" style="display: none; color: #ff4757; font-size: 13px; margin-bottom: 10px; text-align: center;"></div>
-                <button id="loginBtn" style="width: 100%; padding: 12px; background: #e77bd5; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 10px;">
+                <button id="loginBtn" style="width: 90%; padding: 12px; background: #e77bd5; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 10px;">
                     Iniciar Sesión
                 </button>
                 <div style="text-align: center; font-size: 13px; color: #666;">
@@ -253,11 +272,6 @@
                         <label class="profile-toggle">
                             <span>Recibir notificaciones</span>
                             <input id="profileNotifications" type="checkbox" checked>
-                        </label>
-
-                        <label class="profile-toggle">
-                            <span>Perfil público</span>
-                            <input id="profilePublic" type="checkbox" checked>
                         </label>
                     </div>
 
