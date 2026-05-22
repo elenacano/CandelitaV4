@@ -2109,35 +2109,55 @@ async function renderChart(range = window.chartRange) {
         userMap[d.usuario][idx]++;
     });
 
-    // colores con mejor contraste (evita tonos muy claros como amarillo pálido)
-    const colors = ['#ff3cac', '#784ba0', '#2b86c5', '#0b8f5b', '#ff6b6b', '#6a5acd', '#ff8c00'];
+    // Colores vibrantes y diferenciados con alto contraste
+    const colors = [
+        '#e91e63', // Rosa fuerte
+        '#9c27b0', // Púrpura
+        '#2196f3', // Azul
+        '#00bcd4', // Cian
+        '#4caf50', // Verde
+        '#ff9800', // Naranja
+        '#f44336'  // Rojo
+    ];
+    
     const datasets = [];
     let colorIdx = 0;
+    
+    // Resaltar al usuario actual con línea más gruesa
+    const isCurrentUser = (name) => name === miNombre;
+    
     for (const [name, data] of Object.entries(userMap)) {
         if (!verTodos && name !== miNombre) continue;
         const color = colors[colorIdx % colors.length];
+        const isCurrent = isCurrentUser(name);
+        
         datasets.push({
             label: name,
             data,
             borderColor: color,
-            backgroundColor: color + '33', // ligera transparencia si se usa fill
+            backgroundColor: color + '20', // Transparencia sutil para área bajo la línea
             pointBackgroundColor: color,
-            pointBorderColor: color,
-            tension: 0.4,
-            borderWidth: 2,
-            pointRadius: 1.5
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: isCurrent ? 2 : 1,
+            tension: 0.3,
+            borderWidth: isCurrent ? 4 : 3, // Usuario actual más grueso
+            pointRadius: isCurrent ? 6 : 5, // Puntos más grandes y visibles
+            pointHoverRadius: isCurrent ? 8 : 7,
+            fill: false, // Sin relleno para mejor claridad
+            order: isCurrent ? 0 : 1 // Usuario actual siempre al frente
         });
         colorIdx++;
     }
 
     // ajustar ticks según ancho
     const parentWidth = ctx.parentElement ? ctx.parentElement.clientWidth : window.innerWidth;
-    const approxLabelWidth = 28;
-    const maxTicks = Math.max(3, Math.floor(parentWidth / approxLabelWidth));
+    const isMobile = parentWidth <= 420;
+    const approxLabelWidth = isMobile ? 35 : 40;
+    const maxTicks = Math.max(5, Math.floor(parentWidth / approxLabelWidth));
    
-    // ajustar tamaño de la leyenda según ancho (evita que los nombres se salgan)
-    const legendFontSize = parentWidth <= 420 ? 9 : 11;
-    const legendBoxWidth = parentWidth <= 420 ? 8 : 12;
+    // ajustar tamaño de la leyenda según ancho
+    const legendFontSize = isMobile ? 11 : 13;
+    const legendBoxWidth = isMobile ? 15 : 20;
 
     chart = new Chart(ctx, {
         type: 'line',
@@ -2145,20 +2165,53 @@ async function renderChart(range = window.chartRange) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
             scales: {
-                y: { beginAtZero: true, ticks: { stepSize: 1 } },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1,
+                        font: { size: isMobile ? 11 : 12 },
+                        color: '#666'
+                    },
+                    grid: {
+                        color: '#f0f0f0',
+                        drawBorder: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Deliciosos 🍧',
+                        font: { size: isMobile ? 12 : 14, weight: 'bold' },
+                        color: '#e77bd5'
+                    }
+                },
                 x: {
                     ticks: {
                         autoSkip: true,
                         maxTicksLimit: Math.min(labels.length, maxTicks),
                         maxRotation: 0,
                         minRotation: 0,
-                        font: { size: 10 }
+                        font: { size: isMobile ? 10 : 11 },
+                        color: '#666'
+                    },
+                    grid: {
+                        display: false,
+                        drawBorder: false
                     }
                 }
             },
             plugins: {
                 tooltip: {
+                    enabled: true,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: { size: 13, weight: 'bold' },
+                    bodyFont: { size: 12 },
+                    padding: 12,
+                    cornerRadius: 8,
+                    displayColors: true,
                     callbacks: {
                         title: (items) => {
                             const i = items[0]?.dataIndex ?? 0;
@@ -2175,6 +2228,12 @@ async function renderChart(range = window.chartRange) {
                                 return 'Día ' + labels[i];
                             }
                             return labels[i];
+                        },
+                        label: (context) => {
+                            const label = context.dataset.label || '';
+                            const value = context.parsed.y;
+                            const plural = value !== 1 ? 's' : '';
+                            return ` ${label}: ${value} delicioso${plural}`;
                         }
                     }
                 },
@@ -2182,11 +2241,26 @@ async function renderChart(range = window.chartRange) {
                 // leyenda responsive para móviles
                 legend: {
                     position: 'bottom',
-                    labels: { boxWidth: legendBoxWidth, font: { size: legendFontSize }, padding: 6 },
+                    labels: {
+                        boxWidth: legendBoxWidth,
+                        boxHeight: legendBoxWidth,
+                        font: { size: legendFontSize, weight: '500' },
+                        padding: isMobile ? 8 : 10,
+                        color: '#333',
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    },
                     align: 'center'
                 }
             },
-            layout: { padding: { left: 4, right: 4 } }
+            layout: {
+                padding: {
+                    left: isMobile ? 5 : 10,
+                    right: isMobile ? 5 : 10,
+                    top: 10,
+                    bottom: 5
+                }
+            }
         }
     });
 }
