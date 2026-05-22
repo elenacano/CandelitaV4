@@ -809,7 +809,7 @@ window.toggleMenu = () => {
     document.getElementById('menu').classList.toggle('active');
 };
 
-window.showSection = (id) => {
+window.showSection = async (id) => {
     const sections = ['main-sec', 'ranking-sec', 'stats-sec', 'achievements-sec', 'profile-sec', 'history-sec'];
     sections.forEach(s => {
         const el = document.getElementById(s);
@@ -821,7 +821,13 @@ window.showSection = (id) => {
 
     if (id === 'stats') setTimeout(() => renderChart(), 100);
     if (id === 'ranking') renderRanking();
-    if (id === 'achievements') checkAchievements();
+    if (id === 'achievements') {
+        await checkAchievements();
+        // Refresh profile to ensure achievements are up to date
+        if (currentUser) {
+            currentUserProfile = await getUserProfile(currentUser.uid);
+        }
+    }
     if (id === 'profile') {
         setProfileLoading(!currentUserProfile, 'Cargando perfil...');
         renderProfileSettings();
@@ -1593,6 +1599,11 @@ async function renderRanking() {
     });
 
     const sorted = Object.values(counts).sort((a, b) => b.count - a.count);
+    
+    // Render podium
+    renderPodium(sorted);
+    
+    // Render full ranking list
     const listDiv = document.getElementById("ranking-list");
     if (!listDiv) return;
     listDiv.innerHTML = "";
@@ -1640,6 +1651,126 @@ async function renderRanking() {
         listDiv.appendChild(row);
     }
 }
+
+function renderPodium(sorted) {
+    const podiumContainer = document.getElementById("podium-container");
+    if (!podiumContainer) return;
+    
+    // Clear previous podium
+    podiumContainer.innerHTML = "";
+    
+    if (sorted.length === 0) {
+        podiumContainer.innerHTML = '<div class="podium-empty">No hay datos para este mes aún 📊</div>';
+        return;
+    }
+    
+    // Group users by position (handling ties)
+    const positions = {
+        first: [],
+        second: [],
+        third: []
+    };
+    
+    let currentPosition = 'first';
+    let prevCount = null;
+    let positionIndex = 0;
+    
+    for (let i = 0; i < sorted.length && positionIndex < 3; i++) {
+        const user = sorted[i];
+        
+        // Check if count changed (new position)
+        if (prevCount !== null && user.count !== prevCount) {
+            positionIndex++;
+            if (positionIndex === 1) currentPosition = 'second';
+            else if (positionIndex === 2) currentPosition = 'third';
+            else break; // Beyond podium
+        }
+        
+        if (positionIndex < 3) {
+            positions[currentPosition].push(user);
+        }
+        
+        prevCount = user.count;
+    }
+    
+    // Only show podium if there's at least one user
+    if (positions.first.length === 0) {
+        podiumContainer.innerHTML = '<div class="podium-empty">No hay datos para este mes aún 📊</div>';
+        return;
+    }
+    
+    const podiumWrapper = document.createElement('div');
+    podiumWrapper.className = 'podium-wrapper';
+    
+    const medals = {
+        first: '🥇',
+        second: '🥈',
+        third: '🥉'
+    };
+    
+    const labels = {
+        first: '1º Lugar',
+        second: '2º Lugar',
+        third: '3º Lugar'
+    };
+    
+    // Create podium places
+    ['first', 'second', 'third'].forEach(position => {
+        if (positions[position].length > 0) {
+            const place = document.createElement('div');
+            place.className = `podium-place ${position}`;
+            
+            // Users container (for multiple users in case of tie)
+            const usersContainer = document.createElement('div');
+            usersContainer.className = 'podium-users';
+            
+            positions[position].forEach(user => {
+                const userDiv = document.createElement('div');
+                userDiv.className = 'podium-user';
+                
+                const avatar = document.createElement('img');
+                avatar.className = 'avatar';
+                setImagePreview(avatar, user.name, user.photoURL);
+                
+                const userName = document.createElement('div');
+                userName.className = 'podium-user-name';
+                userName.textContent = user.name;
+                userName.title = user.name; // Tooltip for full name
+                
+                userDiv.appendChild(avatar);
+                userDiv.appendChild(userName);
+                usersContainer.appendChild(userDiv);
+            });
+            
+            // Podium base
+            const base = document.createElement('div');
+            base.className = 'podium-base';
+            
+            const medal = document.createElement('span');
+            medal.className = 'podium-medal';
+            medal.textContent = medals[position];
+            
+            const count = document.createElement('div');
+            count.className = 'podium-count';
+            count.textContent = positions[position][0].count;
+            
+            const label = document.createElement('div');
+            label.className = 'podium-label';
+            label.textContent = labels[position];
+            
+            base.appendChild(medal);
+            base.appendChild(count);
+            base.appendChild(label);
+            
+            place.appendChild(usersContainer);
+            place.appendChild(base);
+            podiumWrapper.appendChild(place);
+        }
+    });
+    
+    podiumContainer.appendChild(podiumWrapper);
+}
+
 
 async function checkAchievements() {
     const user = localStorage.getItem("nombreUsuario");
@@ -2086,7 +2217,7 @@ async function renderChart(range = window.chartRange) {
  window.celebrarToma = () => {
     const duration = 3 * 1000; // 3 segundos de confeti
     const end = Date.now() + duration;
-    const audio = new Audio('success2.mp3');
+    const audio = new Audio('assets/audio/success2.mp3');
     audio.volume = 0.5;
     audio.play();
 
@@ -2927,7 +3058,14 @@ function renderActivityByDayChart(dayData) {
         dayChartInstance.destroy();
     }
     
-    const labels = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    // 1. Ponemos las etiquetas empezando en Lunes y terminando en Domingo
+    const labels = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    
+    // 2. Rotamos los datos: quitamos el primer elemento (Domingo) y lo pasamos al final
+    // Usamos [...dayData] para no modificar el array original sin querer
+    const reorderedData = [...dayData];
+    const sundayData = reorderedData.shift(); // Quita el Domingo (posición 0)
+    reorderedData.push(sundayData);           // Lo mete al final (posición 6)
     
     dayChartInstance = new Chart(ctx, {
         type: 'bar',
@@ -2935,7 +3073,7 @@ function renderActivityByDayChart(dayData) {
             labels: labels,
             datasets: [{
                 label: 'Actividades',
-                data: dayData,
+                data: reorderedData, // <-- Usamos los datos reordenados
                 backgroundColor: 'rgba(120, 75, 160, 0.6)',
                 borderColor: 'rgba(120, 75, 160, 1)',
                 borderWidth: 2,
@@ -3071,6 +3209,9 @@ async function renderActivityHistory() {
     try {
         console.log('Rendering activity history...');
         
+        // Refresh user profile to get latest achievements
+        currentUserProfile = await getUserProfile(currentUser.uid);
+        
         // Calculate statistics
         const stats = await calculateUserStatistics(currentUser.uid);
         
@@ -3078,7 +3219,6 @@ async function renderActivityHistory() {
         document.getElementById('statTotalCount').textContent = stats.totalCount;
         document.getElementById('statCurrentStreak').textContent = stats.currentStreak;
         document.getElementById('statLongestStreak').textContent = stats.longestStreak;
-        document.getElementById('statDaysActive').textContent = stats.daysActive;
         
         // Update favorite time
         const favoriteTimeEl = document.querySelector('.favorite-time-value');
@@ -3097,11 +3237,8 @@ async function renderActivityHistory() {
             renderMonthlyTrendChart(stats.activitiesByMonth);
         }, 100);
         
-        // Render unlocked achievements
-        renderUnlockedAchievements();
-        
-        // Render recent activities
-        await renderRecentActivities();
+        // Initialize monthly activity selectors
+        await initializeMonthYearSelectors();
         
     } catch (error) {
         console.error('Error rendering activity history:', error);
@@ -3118,7 +3255,7 @@ function renderUnlockedAchievements() {
     const achievements = currentUserProfile?.achievements || [];
     
     if (achievements.length === 0) {
-        container.innerHTML = '<p class="empty-state">Aún no has desbloqueado ningún logro. ¡Sigue así!</p>';
+        container.innerHTML = '<p class="empty-state">Aún no has desbloqueado ningún logro :( </p>';
         return;
     }
     
@@ -3171,17 +3308,120 @@ function renderUnlockedAchievements() {
 }
 
 /**
- * Render recent activities list
+ * Initialize month/year selectors with available data
  */
-async function renderRecentActivities() {
-    const container = document.getElementById('recentActivityList');
-    if (!container || !currentUser) return;
+async function initializeMonthYearSelectors() {
+    if (!currentUser) return;
     
     try {
-        const activities = await getUserRecentActivities(currentUser.uid, 30);
+        const yearSelector = document.getElementById('yearSelector');
+        const monthSelector = document.getElementById('monthSelector');
+        
+        if (!yearSelector || !monthSelector) return;
+        
+        // Get all activities to find available years
+        const q = query(
+            collection(db, 'tomas'),
+            where('userId', '==', currentUser.uid),
+            orderBy('fecha', 'desc')
+        );
+        
+        const snapshot = await getDocs(q);
+        const years = new Set();
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const date = data.fecha?.toDate?.();
+            if (date) {
+                years.add(date.getFullYear());
+            }
+        });
+        
+        // Populate year selector
+        yearSelector.innerHTML = '';
+        const sortedYears = Array.from(years).sort((a, b) => b - a);
+        
+        if (sortedYears.length === 0) {
+            // If no data, add current year
+            const currentYear = new Date().getFullYear();
+            yearSelector.innerHTML = `<option value="${currentYear}">${currentYear}</option>`;
+        } else {
+            sortedYears.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                yearSelector.appendChild(option);
+            });
+        }
+        
+        // Set current month and year as default
+        const now = new Date();
+        monthSelector.value = now.getMonth();
+        yearSelector.value = now.getFullYear();
+        
+        // Load current month's data
+        await loadMonthlyActivity();
+        
+    } catch (error) {
+        console.error('Error initializing selectors:', error);
+    }
+}
+
+/**
+ * Load and display monthly activity
+ */
+window.loadMonthlyActivity = async function() {
+    const container = document.getElementById('monthlyActivityList');
+    const summaryDiv = document.getElementById('monthlyActivitySummary');
+    const totalDiv = document.getElementById('monthlyTotal');
+    const monthSelector = document.getElementById('monthSelector');
+    const yearSelector = document.getElementById('yearSelector');
+    
+    if (!container || !currentUser || !monthSelector || !yearSelector) return;
+    
+    try {
+        const selectedMonth = parseInt(monthSelector.value);
+        const selectedYear = parseInt(yearSelector.value);
+        
+        container.innerHTML = '<p class="empty-state">Cargando...</p>';
+        
+        // Get activities for selected month
+        const startDate = new Date(selectedYear, selectedMonth, 1);
+        const endDate = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59);
+        
+        const q = query(
+            collection(db, 'tomas'),
+            where('userId', '==', currentUser.uid),
+            where('fecha', '>=', startDate),
+            where('fecha', '<=', endDate),
+            orderBy('fecha', 'desc')
+        );
+        
+        const snapshot = await getDocs(q);
+        const activities = [];
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const date = data.fecha?.toDate?.();
+            if (date) {
+                activities.push({
+                    id: doc.id,
+                    date: date,
+                    userName: data.usuario || '—'
+                });
+            }
+        });
+        
+        // Update total
+        if (totalDiv) {
+            totalDiv.textContent = activities.length;
+        }
+        if (summaryDiv) {
+            summaryDiv.style.display = 'block';
+        }
         
         if (activities.length === 0) {
-            container.innerHTML = '<p class="empty-state">No hay actividades recientes.</p>';
+            container.innerHTML = '<p class="empty-state">No hay actividades en este mes.</p>';
             return;
         }
         
@@ -3192,29 +3432,20 @@ async function renderRecentActivities() {
             div.className = 'activity-item';
             
             const date = activity.date;
-            const dateStr = date ? date.toLocaleDateString('es-ES', { 
-                day: '2-digit', 
-                month: 'short', 
-                year: 'numeric' 
-            }) : '—';
-            const timeStr = date ? date.toLocaleTimeString('es-ES', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            }) : '—';
-            
-            // Calculate days ago
-            const now = new Date();
-            const diffTime = date ? Math.abs(now - date) : 0;
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-            let agoStr = '';
-            if (diffDays === 0) agoStr = 'Hoy';
-            else if (diffDays === 1) agoStr = 'Ayer';
-            else agoStr = `Hace ${diffDays} días`;
+            const dateStr = date.toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                weekday: 'short'
+            });
+            const timeStr = date.toLocaleTimeString('es-ES', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
             
             div.innerHTML = `
                 <div class="activity-date">
                     <div class="activity-date-main">${dateStr} ${timeStr}</div>
-                    <div class="activity-date-ago">${agoStr}</div>
                 </div>
                 <button class="activity-delete-btn" onclick="deleteActivityFromHistory('${activity.id}')">
                     🗑️
@@ -3245,8 +3476,8 @@ async function deleteActivityFromHistory(activityId) {
             currentUserProfile = await getUserProfile(currentUser.uid);
         }
         
-        // Refresh history view
-        await renderActivityHistory();
+        // Reload monthly activity view
+        await loadMonthlyActivity();
         
         // Refresh other views
         const displayName = getDisplayNameForCurrentContext();

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Candelita Pura VIP ✨</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="iconoapp.png">
-    <link rel="stylesheet" href="style.css">
+    <link rel="apple-touch-icon" href="assets/images/iconoapp.png">
+    <link rel="stylesheet" href="src/style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍧</text></svg>">
     <!-- Cropper.js for image cropping -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
@@ -160,7 +160,14 @@
         </div>
 
         <div id="ranking-sec" class="hidden">
-            <div class="card"><h2>Ranking Mensual 🏆</h2><div id="ranking-list"></div></div>
+            <div class="card"><h2>Ranking Mensual 🏆</h2>
+                <!-- Podium Visual -->
+                <div id="podium-container" class="podium-container">
+                    <!-- El podium se generará dinámicamente -->
+                </div>
+                <!-- Lista de ranking completa -->
+                <div id="ranking-list"></div>
+            </div>
         </div>
 
         <div id="stats-sec" class="hidden">
@@ -270,7 +277,10 @@
 
                     <div class="profile-settings-group">
                         <label class="profile-toggle">
-                            <span>Recibir notificaciones</span>
+                            <span class="profile-toggle-label">
+                                Envío de notificaciones
+                                <span class="info-icon" title="Cuando está activado, se envían notificaciones push a otros usuarios cuando registras un delicioso. Si lo desactivas, tus actividades se guardan normalmente pero no se notifica al grupo.">ℹ️</span>
+                            </span>
                             <input id="profileNotifications" type="checkbox" checked>
                         </label>
                     </div>
@@ -290,40 +300,75 @@
                 <h2>Mi Historial</h2>
                 
                 <!-- Overview Cards -->
-                <div class="stats-overview">
-                    <div class="stat-card">
-                        <div class="stat-value" id="statTotalCount">0</div>
-                        <div class="stat-label">Total</div>
+                <div class="stats-overview-new">
+                    <!-- Total Deliciosos - Full Width -->
+                    <div class="stat-card-main">
+                        <div class="stat-value-main" id="statTotalCount">0</div>
+                        <div class="stat-label-main">Total Deliciosos 🍧</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="statCurrentStreak">0</div>
-                        <div class="stat-label">Racha Actual</div>
+                    
+                    <!-- Rachas - Two columns -->
+                    <div class="stat-cards-row">
+                        <div class="stat-card-secondary">
+                            <div class="stat-value-secondary" id="statLongestStreak">0</div>
+                            <div class="stat-label-secondary">🔥 Mayor Racha</div>
+                        </div>
+                        <div class="stat-card-secondary">
+                            <div class="stat-value-secondary" id="statCurrentStreak">0</div>
+                            <div class="stat-label-secondary">⚡ Racha Actual</div>
+                        </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="statLongestStreak">0</div>
-                        <div class="stat-label">Mejor Racha</div>
+                </div>
+
+                <!-- Monthly Activity List -->
+                <div class="history-section">
+                    <h3>Actividad por Mes</h3>
+                    <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 15px; flex-wrap: wrap;">
+                        <select id="monthSelector" style="flex: 1; min-width: 100px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; background: white; cursor: pointer;">
+                            <option value="0">Enero</option>
+                            <option value="1">Febrero</option>
+                            <option value="2">Marzo</option>
+                            <option value="3">Abril</option>
+                            <option value="4">Mayo</option>
+                            <option value="5">Junio</option>
+                            <option value="6">Julio</option>
+                            <option value="7">Agosto</option>
+                            <option value="8">Septiembre</option>
+                            <option value="9">Octubre</option>
+                            <option value="10">Noviembre</option>
+                            <option value="11">Diciembre</option>
+                        </select>
+                        <select id="yearSelector" style="flex: 1; min-width: 100px; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; background: white; cursor: pointer;">
+                            <!-- Years will be populated dynamically -->
+                        </select>
+                        <button onclick="loadMonthlyActivity()" style="flex: 1; min-width: 100px; padding: 8px 16px; background: #e77bd5; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer;">
+                            Ver
+                        </button>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="statDaysActive">0</div>
-                        <div class="stat-label">Días Activos</div>
+                    <div id="monthlyActivitySummary" style="text-align: center; margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 10px; display: none;">
+                        <div style="font-size: 24px; font-weight: bold; color: #e77bd5;" id="monthlyTotal">0</div>
+                        <div style="font-size: 13px; color: #666;">Total del mes</div>
+                    </div>
+                    <div id="monthlyActivityList" class="recent-activity-list">
+                        <p class="empty-state">Selecciona un mes y año para ver la actividad</p>
                     </div>
                 </div>
 
                 <!-- Favorite Time -->
-                <div class="history-section">
-                    <h3>⏰ Tu Momento Favorito</h3>
-                    <div id="favoriteTimeDisplay" class="favorite-time">
-                        <span class="favorite-time-value">--:--</span>
-                    </div>
-                </div>
-
+                <!-- <div class="history-section">
+                                    <h3>⏰ Tu Momento Favorito</h3>
+                                    <div id="favoriteTimeDisplay" class="favorite-time">
+                                        <span class="favorite-time-value">--:--</span>
+                                    </div>
+                                </div> -->
+                
                 <!-- Time Patterns Charts -->
-                <div class="history-section">
-                    <h3>Actividad por Hora del Día</h3>
-                    <div class="chart-container">
-                        <canvas id="hourChart"></canvas>
-                    </div>
-                </div>
+                <!-- <div class="history-section">
+                                    <h3>Actividad por Hora del Día</h3>
+                                    <div class="chart-container">
+                                        <canvas id="hourChart"></canvas>
+                                    </div>
+                                </div> -->
 
                 <div class="history-section">
                     <h3>Actividad por Día de la Semana</h3>
@@ -339,21 +384,7 @@
                     </div>
                 </div>
 
-                <!-- Achievements Progress -->
-                <div class="history-section">
-                    <h3>🏆 Mis Logros Desbloqueados</h3>
-                    <div id="unlockedAchievements" class="unlocked-achievements">
-                        <p class="empty-state">Aún no has desbloqueado ningún logro :(</p>
-                    </div>
-                </div>
-
-                <!-- Recent Activity List -->
-                <div class="history-section">
-                    <h3>Actividad Reciente (Últimos 30 días)</h3>
-                    <div id="recentActivityList" class="recent-activity-list">
-                        <p class="empty-state">Cargando actividades...</p>
-                    </div>
-                </div>
+                
 
                 <!-- Export Data -->
                 <div class="history-section">
@@ -403,6 +434,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script type="module" src="script.js"></script>
+    <script type="module" src="src/script.js"></script>
 </body>
 </html>

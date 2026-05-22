@@ -8,12 +8,12 @@
   "description": "App para registro de tomas entre amigos",
   "icons": [
     {
-      "src": "iconoapp.png",
+      "src": "assets/images/iconoapp.png",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "iconoapp.png",
+      "src": "assets/images/iconoapp.png",
       "sizes": "192x192",
       "type": "image/png"
     }
