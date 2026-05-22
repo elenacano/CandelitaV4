@@ -662,6 +662,52 @@ h1, h2, h3 { background: linear-gradient(to right, #784ba0, #ff3cac); -webkit-ba
     margin-top: 6px;
 }
 
+.profile-danger-zone {
+    margin-top: 30px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fafafa;
+}
+
+.profile-danger-zone h3 {
+    color: #666;
+    font-size: 13px;
+    margin: 0 0 8px 0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.profile-danger-zone p {
+    color: #999;
+    font-size: 12px;
+    margin: 0 0 12px 0;
+    line-height: 1.4;
+}
+
+.delete-account-btn {
+    padding: 8px 16px;
+    background: transparent;
+    color: #ff4757;
+    border: 1px solid #ff4757;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.delete-account-btn:hover {
+    background: #fff5f5;
+    border-color: #ff3838;
+    color: #ff3838;
+}
+
+.delete-account-btn:active {
+    transform: scale(0.98);
+}
+
 .profile-status {
     min-height: 20px;
     margin-bottom: 12px;

@@ -12,6 +12,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <style>
         /* responsive: más alto en móviles para que las etiquetas no se solapen */
         @media (max-width: 420px) {
@@ -291,6 +294,12 @@
                     </div>
 
                     <button id="saveProfileBtn" type="button" class="main-button profile-save-btn">Guardar perfil</button>
+                    
+                    <div class="profile-danger-zone">
+                        <h3>Zona de peligro</h3>
+                        <p>Esta acción es irreversible. Se eliminarán todos tus datos permanentemente.</p>
+                        <button id="deleteAccountBtn" type="button" class="delete-account-btn">🗑️ Borrar mi cuenta</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -388,6 +397,9 @@
 
                 <!-- Export Data -->
                 <div class="history-section">
+                    <button onclick="exportUserDataToPDF()" class="secondary-button" style="margin-bottom: 10px;">
+                        📄 Exportar Historial en PDF
+                    </button>
                     <button onclick="exportUserData()" class="secondary-button">
                         📥 Exportar Mis Datos (JSON)
                     </button>

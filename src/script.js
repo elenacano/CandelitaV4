@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, getDocs, where, getDoc, doc, setDoc, deleteDoc, Timestamp, updateDoc, or } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail, setPersistence, browserLocalPersistence, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 // Firebase Storage imports commented out - using base64 storage instead (free alternative)
 // import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
@@ -400,7 +400,7 @@ function updateHeaderProfileUI() {
     const headerAvatarMenu = document.getElementById('headerAvatarMenu');
     const profileMenuName = document.getElementById('profileMenuName');
 
-    if (saludo) saludo.innerText = 'Hola ' + displayName + ' ✨';
+    if (saludo) saludo.innerText = ' ' + displayName + ' ✨';
     if (headerAvatar) setImagePreview(headerAvatar, displayName, photoURL);
     if (headerAvatarMenu) setImagePreview(headerAvatarMenu, displayName, photoURL);
     if (profileMenuName) profileMenuName.textContent = displayName;
@@ -2630,6 +2630,7 @@ function setupProfileUI() {
     const saveProfileBtn = document.getElementById('saveProfileBtn');
     const uploadProfileInput = document.getElementById('profilePictureInput');
     const deleteProfileBtn = document.getElementById('deleteProfilePictureBtn');
+    const deleteAccountBtn = document.getElementById('deleteAccountBtn');
 
     if (saveProfileBtn) {
         saveProfileBtn.addEventListener('click', async () => {
@@ -2724,6 +2725,12 @@ function setupProfileUI() {
             }
         });
     }
+
+    if (deleteAccountBtn) {
+        deleteAccountBtn.addEventListener('click', async () => {
+            await deleteUserAccount();
+        });
+    }
 }
 
 window.cerrarSesion = async () => {
@@ -2741,6 +2748,104 @@ window.cerrarSesion = async () => {
         location.reload();
     }
 };
+
+/**
+ * Delete user account and all associated data
+ */
+async function deleteUserAccount() {
+    if (!currentUser) {
+        alert('No hay ninguna sesión activa.');
+        return;
+    }
+
+    const userName = getDisplayNameForCurrentContext() || 'tu cuenta';
+    const confirmMessage = `⚠️ ADVERTENCIA: Esta acción es IRREVERSIBLE\n\n` +
+        `Se eliminará permanentemente:\n` +
+        `• Tu perfil de usuario\n` +
+        `• Todo tu historial de actividades\n` +
+        `• Tus logros y estadísticas\n` +
+        `• Tu foto de perfil\n\n` +
+        `¿Estás completamente seguro de que quieres borrar ${userName}?\n\n` +
+        `Escribe "BORRAR" para confirmar:`;
+
+    const userInput = prompt(confirmMessage);
+    
+    if (userInput !== 'BORRAR') {
+        if (userInput !== null) {
+            alert('Cancelado. Tu cuenta no ha sido eliminada.');
+        }
+        return;
+    }
+
+    // Request password for reauthentication
+    const password = prompt('Por seguridad, confirma tu contraseña:');
+    if (!password) {
+        alert('Cancelado. Se requiere la contraseña para eliminar la cuenta.');
+        return;
+    }
+
+    try {
+        setProfileLoading(true, 'Verificando identidad...');
+        
+        // Reauthenticate user before deletion (Firebase security requirement)
+        const credential = EmailAuthProvider.credential(currentUser.email, password);
+        await reauthenticateWithCredential(currentUser, credential);
+        console.log('✅ User reauthenticated successfully');
+
+        setProfileLoading(true, 'Eliminando cuenta...');
+        const userId = currentUser.uid;
+
+        // 1. Delete all user activities from 'tomas' collection
+        console.log('🗑️ Deleting user activities...');
+        const tomasQuery = query(collection(db, 'tomas'), where('userId', '==', userId));
+        const tomasSnapshot = await getDocs(tomasQuery);
+        const deleteTomasPromises = tomasSnapshot.docs.map(doc => deleteDoc(doc.ref));
+        await Promise.all(deleteTomasPromises);
+        console.log(`✅ Deleted ${tomasSnapshot.size} activities`);
+
+        // 2. Delete user profile from 'users' collection
+        console.log('🗑️ Deleting user profile...');
+        const userDocRef = doc(db, 'users', userId);
+        await deleteDoc(userDocRef);
+        console.log('✅ User profile deleted');
+
+        // 3. Delete Firebase Authentication account
+        console.log('🗑️ Deleting authentication account...');
+        await deleteUser(currentUser);
+        console.log('✅ Authentication account deleted');
+
+        // 4. Clean up local data
+        localStorage.removeItem('nombreUsuario');
+        currentUser = null;
+        currentUserProfile = null;
+        if (activityFeedUnsubscribe) {
+            activityFeedUnsubscribe();
+            activityFeedUnsubscribe = null;
+        }
+
+        // 5. Show success message and reload
+        alert('✅ Tu cuenta ha sido eliminada permanentemente.\n\nGracias por usar Candelita.');
+        location.reload();
+
+    } catch (error) {
+        console.error('❌ Error deleting account:', error);
+        
+        let errorMessage = 'No se pudo eliminar la cuenta. ';
+        
+        if (error.code === 'auth/wrong-password') {
+            errorMessage = 'Contraseña incorrecta. No se pudo eliminar la cuenta.';
+        } else if (error.code === 'auth/requires-recent-login') {
+            errorMessage = 'Por seguridad, necesitas volver a iniciar sesión antes de eliminar tu cuenta.';
+        } else if (error.code === 'auth/invalid-credential') {
+            errorMessage = 'Credenciales inválidas. Verifica tu contraseña.';
+        } else {
+            errorMessage += error.message || 'Error desconocido.';
+        }
+        
+        setProfileStatus(errorMessage, true);
+        setProfileLoading(false);
+    }
+}
 
 // --- ACTIVITY HISTORY & STATISTICS ---
 
@@ -3046,7 +3151,317 @@ async function exportUserData() {
     }
 }
 
+// Export user data to PDF with beautiful design
+async function exportUserDataToPDF() {
+    if (!currentUser || !currentUserProfile) {
+        alert('No hay datos de usuario para exportar.');
+        return;
+    }
+    
+    try {
+        // Show loading state
+        const button = event.target;
+        const originalText = button.textContent;
+        button.textContent = '⏳ Generando PDF...';
+        button.disabled = true;
+        
+        // Get all user activities
+        const activities = await getUserRecentActivities(currentUser.uid, 1000);
+        
+        // Get statistics
+        const stats = await calculateUserStatistics(currentUser.uid);
+        
+        // Get achievements from profile
+        const achievements = currentUserProfile.achievements || [];
+        
+        // Initialize jsPDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Define colors matching the app theme
+        const primaryColor = [231, 123, 213]; // #e77bd5
+        const secondaryColor = [255, 60, 172]; // #ff3cac
+        const accentColor = [120, 75, 160]; // #784ba0
+        const textColor = [51, 51, 51];
+        const lightGray = [245, 245, 245];
+        
+        let yPos = 20;
+        
+        // ===== HEADER WITH GRADIENT EFFECT =====
+        // Background gradient simulation with rectangles
+        doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.rect(0, 0, 210, 45, 'F');
+        doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
+        doc.rect(0, 35, 210, 10, 'F');
+        
+        // Title
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(24);
+        doc.setFont(undefined, 'bold');
+        doc.text('Candelita Pura VIP', 20, 25);
+        
+        // Subtitle
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        doc.text('Mi Historial Personal', 35, 33);
+        
+        yPos = 55;
+        
+        // ===== USER INFO SECTION =====
+        doc.setFillColor(lightGray[0], lightGray[1], lightGray[2]);
+        doc.roundedRect(15, yPos, 180, 25, 3, 3, 'F');
+        
+        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('Usuario: ' + currentUserProfile.displayName, 20, yPos + 10);
+        
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(100, 100, 100);
+        doc.text('Email: ' + currentUserProfile.email, 20, yPos + 17);
+        
+        const exportDate = new Date().toLocaleDateString('es-ES', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        doc.text('Exportado: ' + exportDate, 20, yPos + 23);
+        
+        yPos += 35;
+        
+        // ===== STATISTICS SECTION =====
+        doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.rect(15, yPos, 180, 8, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('ESTADISTICAS', 20, yPos + 6);
+        
+        yPos += 15;
+        
+        // Statistics grid
+        const statBoxWidth = 85;
+        const statBoxHeight = 20;
+        const statGap = 10;
+        
+        // Row 1: Total and Days Active
+        doc.setFillColor(250, 250, 250);
+        doc.roundedRect(15, yPos, statBoxWidth, statBoxHeight, 2, 2, 'F');
+        doc.roundedRect(15 + statBoxWidth + statGap, yPos, statBoxWidth, statBoxHeight, 2, 2, 'F');
+        
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.setFontSize(20);
+        doc.setFont(undefined, 'bold');
+        doc.text(stats.totalCount.toString(), 20, yPos + 10);
+        doc.text(stats.daysActive.toString(), 20 + statBoxWidth + statGap, yPos + 10);
+        
+        doc.setTextColor(100, 100, 100);
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text('Total Deliciosos', 20, yPos + 16);
+        doc.text('Dias Activos', 20 + statBoxWidth + statGap, yPos + 16);
+        
+        yPos += statBoxHeight + 5;
+        
+        // Row 2: Current and Longest Streak
+        doc.setFillColor(250, 250, 250);
+        doc.roundedRect(15, yPos, statBoxWidth, statBoxHeight, 2, 2, 'F');
+        doc.roundedRect(15 + statBoxWidth + statGap, yPos, statBoxWidth, statBoxHeight, 2, 2, 'F');
+        
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.setFontSize(20);
+        doc.setFont(undefined, 'bold');
+        doc.text(stats.currentStreak.toString(), 20, yPos + 10);
+        doc.text(stats.longestStreak.toString(), 20 + statBoxWidth + statGap, yPos + 10);
+        
+        doc.setTextColor(100, 100, 100);
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text('Racha Actual', 20, yPos + 16);
+        doc.text('Mayor Racha', 20 + statBoxWidth + statGap, yPos + 16);
+        
+        yPos += statBoxHeight + 10;
+        
+        // Additional stats
+        if (stats.favoriteTime) {
+            doc.setFontSize(10);
+            doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+            doc.text('Momento Favorito: ' + stats.favoriteTime, 20, yPos);
+            yPos += 6;
+        }
+        
+        if (stats.mostActiveDay) {
+            doc.text('Dia Mas Activo: ' + stats.mostActiveDay, 20, yPos);
+            yPos += 6;
+        }
+        
+        if (stats.mostActiveMonth) {
+            doc.text('Mes Mas Activo: ' + stats.mostActiveMonth, 20, yPos);
+            yPos += 10;
+        }
+        
+        // ===== ACHIEVEMENTS SECTION =====
+        if (achievements.length > 0) {
+            // Check if we need a new page
+            if (yPos > 240) {
+                doc.addPage();
+                yPos = 20;
+            }
+            
+            doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
+            doc.rect(15, yPos, 180, 8, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(14);
+            doc.setFont(undefined, 'bold');
+            doc.text('LOGROS DESBLOQUEADOS (' + achievements.length + ')', 20, yPos + 6);
+            
+            yPos += 15;
+            
+            // Display achievements in a grid
+            const achievementBoxWidth = 85;
+            const achievementBoxHeight = 12;
+            let col = 0;
+            
+            achievements.slice(0, 20).forEach((ach, index) => {
+                const xPos = 15 + (col * (achievementBoxWidth + statGap));
+                
+                doc.setFillColor(255, 250, 240);
+                doc.roundedRect(xPos, yPos, achievementBoxWidth, achievementBoxHeight, 2, 2, 'F');
+                
+                doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+                doc.setFontSize(9);
+                doc.setFont(undefined, 'normal');
+                
+                // Truncate long achievement names
+                let achName = ach.name || ach;
+                if (achName.length > 25) {
+                    achName = achName.substring(0, 22) + '...';
+                }
+                doc.text(achName, xPos + 3, yPos + 8);
+                
+                col++;
+                if (col >= 2) {
+                    col = 0;
+                    yPos += achievementBoxHeight + 3;
+                    
+                    // Check if we need a new page
+                    if (yPos > 260) {
+                        doc.addPage();
+                        yPos = 20;
+                    }
+                }
+            });
+            
+            if (col > 0) {
+                yPos += achievementBoxHeight + 10;
+            } else {
+                yPos += 10;
+            }
+        }
+        
+        // ===== ACTIVITY HISTORY TABLE =====
+        if (yPos > 200) {
+            doc.addPage();
+            yPos = 20;
+        }
+        
+        doc.setFillColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+        doc.rect(15, yPos, 180, 8, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('HISTORIAL DE ACTIVIDADES', 20, yPos + 6);
+        
+        yPos += 12;
+        
+        // Prepare activity data for table
+        const activityData = activities.slice(0, 100).map((activity, index) => {
+            const date = activity.date ? activity.date : new Date();
+            const dateStr = date.toLocaleDateString('es-ES', {
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric' 
+            });
+            const timeStr = date.toLocaleTimeString('es-ES', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            return [
+                (index + 1).toString(),
+                dateStr,
+                timeStr,
+                activity.userName || currentUserProfile.displayName
+            ];
+        });
+        
+        // Create table with autoTable
+        doc.autoTable({
+            startY: yPos,
+            head: [['#', 'Fecha', 'Hora', 'Usuario']],
+            body: activityData,
+            theme: 'striped',
+            headStyles: {
+                fillColor: [231, 123, 213],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 10
+            },
+            bodyStyles: {
+                fontSize: 9,
+                textColor: [51, 51, 51]
+            },
+            alternateRowStyles: {
+                fillColor: [250, 250, 250]
+            },
+            margin: { left: 15, right: 15 },
+            columnStyles: {
+                0: { cellWidth: 15, halign: 'center' },
+                1: { cellWidth: 35, halign: 'center' },
+                2: { cellWidth: 30, halign: 'center' },
+                3: { cellWidth: 100 }
+            }
+        });
+        
+        // ===== FOOTER ON LAST PAGE =====
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(150, 150, 150);
+            doc.text(
+                'Candelita Pura VIP - Pagina ' + i + ' de ' + pageCount,
+                105,
+                290,
+                { align: 'center' }
+            );
+        }
+        
+        // Save the PDF
+        const fileName = `Candelita-${currentUserProfile.displayName}-${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+        
+        // Restore button state
+        button.textContent = originalText;
+        button.disabled = false;
+        
+        alert('PDF generado correctamente');
+        
+    } catch (error) {
+        console.error('Error exporting PDF:', error);
+        alert('Error al generar el PDF: ' + error.message);
+        
+        // Restore button state
+        if (event && event.target) {
+            event.target.textContent = 'Exportar Historial en PDF';
+            event.target.disabled = false;
+        }
+    }
+}
+
 window.exportUserData = exportUserData;
+window.exportUserDataToPDF = exportUserDataToPDF;
 // --- ACTIVITY HISTORY CHARTS & RENDERING ---
 
 let hourChartInstance = null;
