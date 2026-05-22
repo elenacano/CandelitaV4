@@ -187,6 +187,11 @@ body {
 
 h1, h2, h3 { background: linear-gradient(to right, #784ba0, #ff3cac); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-top: 0; }
 
+#saludo {
+    font-size: 22px;
+    margin-top: 8px;
+}
+
 .main-button { 
     background: linear-gradient(135deg, #ff3cac 0%, #784ba0 100%);
     color: white; border: none; padding: 22px; font-size: 19px; 
@@ -662,6 +667,126 @@ h1, h2, h3 { background: linear-gradient(to right, #784ba0, #ff3cac); -webkit-ba
     margin-top: 6px;
 }
 
+/* Profile Migration Section */
+.profile-migration-section {
+    margin-top: 20px;
+    padding: 20px;
+    border: 2px solid #667eea;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+}
+
+.profile-migration-section h3 {
+    color: #667eea;
+    font-size: 16px;
+    margin: 0 0 10px 0;
+    font-weight: 600;
+}
+
+.profile-migration-section p {
+    color: #666;
+    font-size: 14px;
+    margin: 0 0 15px 0;
+    line-height: 1.5;
+}
+
+.migration-selector {
+    margin-bottom: 20px;
+}
+
+.legacy-user-select {
+    width: 100%;
+    padding: 12px 15px;
+    font-size: 15px;
+    font-family: inherit;
+    border: 2px solid #667eea;
+    border-radius: 8px;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.legacy-user-select:hover {
+    border-color: #764ba2;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.legacy-user-select:focus {
+    outline: none;
+    border-color: #764ba2;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.migration-info {
+    margin-bottom: 15px;
+    padding: 12px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 8px;
+}
+
+.migration-info p {
+    margin: 5px 0;
+}
+
+.migration-info strong {
+    color: #667eea;
+    font-size: 15px;
+}
+
+.migration-btn {
+    width: 100%;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.migration-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+}
+
+.migration-btn:active {
+    transform: translateY(0);
+}
+
+.migration-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.migration-btn-secondary {
+    width: 100%;
+    padding: 12px 20px;
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.migration-btn-secondary:hover {
+    background: #667eea;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.migration-btn-secondary:active {
+    transform: translateY(0);
+}
+
 .profile-danger-zone {
     margin-top: 30px;
     padding: 15px;
@@ -780,7 +905,7 @@ h1, h2, h3 { background: linear-gradient(to right, #784ba0, #ff3cac); -webkit-ba
 #nameModal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.75); z-index: 2000; visibility: hidden; opacity: 0; transition: opacity 0.3s ease, visibility 0.3s ease; }
 #nameModal[aria-hidden="false"] { visibility: visible; opacity: 1; }
 #nameModal .modal-card { background: rgba(255,255,255,0.91); padding: 20px; border-radius: 14px; width: 80%; max-width: 420px; text-align: center; }
-#nameModal input { width: 80%; padding: 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.09); margin-top: 10px; }
+#nameModal input { width: 80%; padding: 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.09); margin-top: 10px; box-sizing: border-box; }
 #nameModal button { margin-top: 12px; padding: 10px 14px; border-radius: 10px; border: none; background: var(--primary); color: #fff; }
 
 /* Authentication Form Styles */

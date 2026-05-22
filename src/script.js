@@ -400,7 +400,7 @@ function updateHeaderProfileUI() {
     const headerAvatarMenu = document.getElementById('headerAvatarMenu');
     const profileMenuName = document.getElementById('profileMenuName');
 
-    if (saludo) saludo.innerText = ' ' + displayName + ' ✨';
+    if (saludo) saludo.innerText = 'Hola ' + displayName + ' ✨';
     if (headerAvatar) setImagePreview(headerAvatar, displayName, photoURL);
     if (headerAvatarMenu) setImagePreview(headerAvatarMenu, displayName, photoURL);
     if (profileMenuName) profileMenuName.textContent = displayName;
@@ -423,6 +423,9 @@ function renderProfileSettings() {
     if (profilePublic) profilePublic.checked = profile.settings?.publicProfile ?? true;
     if (profileCreatedAt) profileCreatedAt.textContent = formatAccountDate(profile.createdAt);
     if (profileAvatar) setImagePreview(profileAvatar, profile.displayName, profile.photoURL);
+    
+    // Check for legacy data migration
+    checkAndShowLegacyMigration();
 }
 
 function setProfileStatus(message, isError = false) {
@@ -646,15 +649,24 @@ async function linkLegacyData(userId, displayName) {
     console.log(`🔄 Starting legacy data migration for user: ${displayName} (${userId})`);
     
     try {
-        // Query for legacy activities: matching usuario and userId is null
-        const legacyQuery = query(
+        // Query for activities with matching usuario
+        const userQuery = query(
             collection(db, "tomas"),
-            where("usuario", "==", displayName),
-            where("userId", "==", null)
+            where("usuario", "==", displayName)
         );
         
-        const snapshot = await getDocs(legacyQuery);
-        const totalDocs = snapshot.size;
+        const snapshot = await getDocs(userQuery);
+        
+        // Filter for activities without userId
+        const legacyDocs = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (!data.userId || data.userId === null || data.userId === '') {
+                legacyDocs.push(doc);
+            }
+        });
+        
+        const totalDocs = legacyDocs.length;
         
         console.log(`📊 Found ${totalDocs} legacy activities to migrate`);
         
@@ -667,7 +679,7 @@ async function linkLegacyData(userId, displayName) {
         let linkedCount = 0;
         let currentBatch = [];
         
-        for (const docSnap of snapshot.docs) {
+        for (const docSnap of legacyDocs) {
             currentBatch.push(docSnap);
             
             // Process batch when it reaches BATCH_SIZE or it's the last document
@@ -714,28 +726,24 @@ async function linkLegacyData(userId, displayName) {
  */
 async function checkLegacyData(displayName) {
     try {
-        const legacyQuery = query(
+        // Query for activities with matching usuario
+        const userQuery = query(
             collection(db, "tomas"),
-            where("usuario", "==", displayName),
-            where("userId", "==", null),
-            limit(1)
+            where("usuario", "==", displayName)
         );
         
-        const snapshot = await getDocs(legacyQuery);
+        const snapshot = await getDocs(userQuery);
         
-        if (snapshot.empty) {
-            return 0;
-        }
+        // Filter in memory for activities without userId
+        let count = 0;
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (!data.userId || data.userId === null || data.userId === '') {
+                count++;
+            }
+        });
         
-        // Get full count
-        const fullQuery = query(
-            collection(db, "tomas"),
-            where("usuario", "==", displayName),
-            where("userId", "==", null)
-        );
-        
-        const fullSnapshot = await getDocs(fullQuery);
-        return fullSnapshot.size;
+        return count;
         
     } catch (error) {
         console.error('Error checking legacy data:', error);
@@ -2731,7 +2739,299 @@ function setupProfileUI() {
             await deleteUserAccount();
         });
     }
+
+    // Legacy data migration button - Check and migrate
+    const checkMigrationBtn = document.getElementById('checkMigrationBtn');
+    if (checkMigrationBtn) {
+        checkMigrationBtn.addEventListener('click', async () => {
+            await migrateSelectedLegacyUser();
+        });
+    }
+    
+    // Show all users button
+    const showAllUsersBtn = document.getElementById('showAllUsersBtn');
+    if (showAllUsersBtn) {
+        showAllUsersBtn.addEventListener('click', async () => {
+            await showAllUsersDebug();
+        });
+    }
+    
+    // Load legacy users when profile is rendered
+    loadLegacyUsers();
 }
+
+/**
+ * Show all users in database for debugging
+ */
+async function showAllUsersDebug() {
+    const migrationInfo = document.getElementById('migrationInfo');
+    
+    try {
+        setProfileLoading(true, 'Cargando todos los usuarios...');
+        
+        // Query ALL activities
+        const allQuery = query(collection(db, "tomas"));
+        const snapshot = await getDocs(allQuery);
+        
+        // Collect user statistics
+        const userStats = {};
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const userName = data.usuario || 'Sin nombre';
+            const userId = data.userId || 'SIN VINCULAR';
+            
+            const key = `${userName}|${userId}`;
+            
+            if (!userStats[key]) {
+                userStats[key] = {
+                    userName: userName,
+                    userId: userId,
+                    count: 0
+                };
+            }
+            userStats[key].count++;
+        });
+        
+        // Sort by count
+        const sortedUsers = Object.values(userStats).sort((a, b) => b.count - a.count);
+        
+        // Build HTML
+        let html = '<div style="max-height: 400px; overflow-y: auto; font-size: 13px;">';
+        html += '<h4 style="margin: 0 0 10px 0; color: #667eea;">📊 Todos los Usuarios en la Base de Datos:</h4>';
+        html += '<table style="width: 100%; border-collapse: collapse;">';
+        html += '<tr style="background: #f0f0f0; font-weight: bold;"><td style="padding: 8px; border: 1px solid #ddd;">Usuario</td><td style="padding: 8px; border: 1px solid #ddd;">Estado</td><td style="padding: 8px; border: 1px solid #ddd;">Actividades</td></tr>';
+        
+        sortedUsers.forEach(user => {
+            const isLinked = user.userId !== 'SIN VINCULAR';
+            const statusColor = isLinked ? '#28a745' : '#ff4757';
+            const statusText = isLinked ? '✅ Vinculado' : '❌ Sin vincular';
+            const userIdShort = user.userId === 'SIN VINCULAR' ? user.userId : user.userId.substring(0, 8) + '...';
+            
+            html += `<tr>
+                <td style="padding: 8px; border: 1px solid #ddd;"><strong>${user.userName}</strong></td>
+                <td style="padding: 8px; border: 1px solid #ddd; color: ${statusColor};">${statusText}<br><small style="color: #999;">${userIdShort}</small></td>
+                <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${user.count}</td>
+            </tr>`;
+        });
+        
+        html += '</table>';
+        html += `<p style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 6px; font-size: 12px;">
+            <strong>💡 Información:</strong><br>
+            • <strong>Vinculado</strong>: Actividades ya asociadas a una cuenta<br>
+            • <strong>Sin vincular</strong>: Actividades que puedes migrar<br>
+            • Tu cuenta actual: <strong>${currentUserProfile?.displayName || 'Desconocido'}</strong>
+        </p>`;
+        html += '</div>';
+        
+        if (migrationInfo) {
+            migrationInfo.innerHTML = html;
+            migrationInfo.style.display = 'block';
+        }
+        
+    } catch (error) {
+        console.error('Error loading all users:', error);
+        alert('Error al cargar usuarios: ' + error.message);
+    } finally {
+        setProfileLoading(false);
+    }
+}
+
+/**
+ * Load list of legacy users (users without userId or userId: null)
+ */
+async function loadLegacyUsers() {
+    const legacyUserSelect = document.getElementById('legacyUserSelect');
+    if (!legacyUserSelect) return;
+    
+    try {
+        // Query for ALL activities and filter in memory
+        // (Firebase doesn't support OR queries easily for null/undefined)
+        const allQuery = query(collection(db, "tomas"));
+        const snapshot = await getDocs(allQuery);
+        
+        // Get unique user names WITHOUT userId
+        const userNames = new Set();
+        const userCounts = {};
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Check if userId is null, undefined, or empty string
+            if (data.usuario && (!data.userId || data.userId === null || data.userId === '')) {
+                userNames.add(data.usuario);
+                userCounts[data.usuario] = (userCounts[data.usuario] || 0) + 1;
+            }
+        });
+        
+        // Sort by activity count (most active first)
+        const sortedUsers = Array.from(userNames).sort((a, b) => {
+            return userCounts[b] - userCounts[a];
+        });
+        
+        // Populate select
+        legacyUserSelect.innerHTML = '<option value="">-- Selecciona tu usuario anterior --</option>';
+        
+        sortedUsers.forEach(userName => {
+            const option = document.createElement('option');
+            option.value = userName;
+            option.textContent = `${userName} (${userCounts[userName]} actividades)`;
+            legacyUserSelect.appendChild(option);
+        });
+        
+        if (sortedUsers.length === 0) {
+            legacyUserSelect.innerHTML = '<option value="">No hay usuarios sin vincular</option>';
+            legacyUserSelect.disabled = true;
+        } else {
+            legacyUserSelect.disabled = false;
+        }
+        
+        console.log(`✅ Loaded ${sortedUsers.length} legacy users:`, sortedUsers);
+        
+    } catch (error) {
+        console.error('Error loading legacy users:', error);
+        legacyUserSelect.innerHTML = '<option value="">Error al cargar usuarios</option>';
+    }
+}
+
+/**
+ * Migrate data from selected legacy user
+ */
+async function migrateSelectedLegacyUser() {
+    if (!currentUser || !currentUserProfile) {
+        alert('Error: No hay usuario autenticado.');
+        return;
+    }
+    
+    const legacyUserSelect = document.getElementById('legacyUserSelect');
+    const checkMigrationBtn = document.getElementById('checkMigrationBtn');
+    const migrationInfo = document.getElementById('migrationInfo');
+    
+    // Get selected legacy user
+    const selectedLegacyUser = legacyUserSelect?.value;
+    
+    if (!selectedLegacyUser) {
+        alert('⚠️ Por favor, selecciona tu usuario anterior de la lista.');
+        return;
+    }
+    
+    try {
+        // Disable button and show loading state
+        if (checkMigrationBtn) {
+            checkMigrationBtn.disabled = true;
+            checkMigrationBtn.textContent = '🔍 Verificando datos...';
+        }
+        
+        setProfileLoading(true, 'Verificando actividades...');
+        
+        // Check if this user was already migrated
+        if (isMigrationCompleted(selectedLegacyUser)) {
+            alert(`✅ El usuario "${selectedLegacyUser}" ya fue migrado anteriormente.\n\nSus actividades ya están vinculadas a una cuenta.`);
+            return;
+        }
+        
+        // Check for legacy data of selected user
+        const legacyCount = await checkLegacyData(selectedLegacyUser);
+        
+        if (legacyCount === 0) {
+            alert(`ℹ️ No se encontraron actividades para "${selectedLegacyUser}".\n\nEs posible que ya hayan sido vinculadas.`);
+            // Reload the list
+            await loadLegacyUsers();
+            return;
+        }
+        
+        // Show info about found data
+        if (migrationInfo) {
+            migrationInfo.innerHTML = `
+                <p><strong>📊 ${legacyCount} actividad${legacyCount > 1 ? 'es' : ''} encontrada${legacyCount > 1 ? 's' : ''}</strong></p>
+                <p style="font-size: 14px; color: #666;">
+                    Usuario: <strong>${selectedLegacyUser}</strong>
+                </p>
+            `;
+            migrationInfo.style.display = 'block';
+        }
+        
+        // Show confirmation dialog
+        const confirmMigration = confirm(
+            `🎉 ¡Encontramos ${legacyCount} actividad${legacyCount > 1 ? 'es' : ''} de "${selectedLegacyUser}"!\n\n` +
+            `¿Quieres vincular${legacyCount > 1 ? 'las' : 'la'} a tu cuenta actual?\n\n` +
+            `Esto te permitirá acceder a tu historial completo desde cualquier dispositivo.\n\n` +
+            `⚠️ Esta acción no se puede deshacer.`
+        );
+        
+        if (!confirmMigration) {
+            if (migrationInfo) {
+                migrationInfo.style.display = 'none';
+            }
+            return;
+        }
+        
+        // Update button text
+        if (checkMigrationBtn) {
+            checkMigrationBtn.textContent = '⏳ Vinculando datos...';
+        }
+        
+        setProfileLoading(true, 'Vinculando actividades...');
+        
+        // Perform migration using the selected legacy user name
+        const linkedCount = await linkLegacyData(currentUser.uid, selectedLegacyUser);
+        
+        // Show success message
+        alert(
+            `✨ ¡Éxito!\n\n` +
+            `Se han vinculado ${linkedCount} actividad${linkedCount > 1 ? 'es' : ''} a tu cuenta.\n\n` +
+            `Tu historial completo ya está disponible.`
+        );
+        
+        // Hide migration info
+        if (migrationInfo) {
+            migrationInfo.innerHTML = `
+                <p style="color: #28a745; font-weight: 600;">✅ Migración completada exitosamente</p>
+                <p style="font-size: 14px; color: #666;">
+                    ${linkedCount} actividad${linkedCount > 1 ? 'es' : ''} vinculada${linkedCount > 1 ? 's' : ''} a tu cuenta.
+                </p>
+            `;
+        }
+        
+        setProfileStatus('¡Migración completada! Actualizando datos...', false);
+        
+        // Reload legacy users list (to remove migrated user)
+        await loadLegacyUsers();
+        
+        // Refresh all data to show migrated activities
+        setTimeout(() => {
+            generateCalendar(currentUserProfile.displayName);
+            renderRanking();
+            renderChart();
+            if (window.actualizarRacha) window.actualizarRacha();
+            setProfileStatus('¡Migración completada! Tu historial completo está ahora disponible.', false);
+        }, 500);
+        
+    } catch (error) {
+        console.error('Migration error:', error);
+        alert(`❌ Error al vincular datos:\n\n${error.message}\n\nPor favor, contacta con soporte si el problema persiste.`);
+        setProfileStatus('Error al vincular datos.', true);
+        if (migrationInfo) {
+            migrationInfo.style.display = 'none';
+        }
+    } finally {
+        // Re-enable button
+        if (checkMigrationBtn) {
+            checkMigrationBtn.disabled = false;
+            checkMigrationBtn.textContent = '🔗 Vincular Datos de Este Usuario';
+        }
+        setProfileLoading(false);
+    }
+}
+
+/**
+ * Check and show legacy migration section in profile if needed (deprecated - keeping for compatibility)
+ */
+async function checkAndShowLegacyMigration() {
+    // This function is now deprecated but kept for compatibility
+    // The new approach uses checkAndMigrateLegacyData() triggered by button click
+    return;
+}
+
 
 window.cerrarSesion = async () => {
     try {

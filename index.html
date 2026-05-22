@@ -55,9 +55,9 @@
             <div id="loginForm" style="display: block;">
                 <p style="margin-bottom: 15px;">Inicia sesión para continuar</p>
                 <input id="loginEmail" type="email" autocomplete="email" placeholder="Email"
-                       style="width: 80%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px;">
+                       style="width: 80%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; box-sizing: border-box;">
                 <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Contraseña"
-                       style="width: 80%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px;">
+                       style="width: 80%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; box-sizing: border-box;">
                 <div id="loginError" style="display: none; color: #ff4757; font-size: 13px; margin-bottom: 10px; text-align: center;"></div>
                 <button id="loginBtn" style="width: 90%; padding: 12px; background: #e77bd5; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 10px;">
                     Iniciar Sesión
@@ -74,11 +74,11 @@
             <div id="registerForm" style="display: none;">
                 <p style="margin-bottom: 15px;">Crea tu cuenta</p>
                 <input id="registerDisplayName" type="text" autocomplete="name" placeholder="Tu nombre"
-                       style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px;">
+                       style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; box-sizing: border-box;">
                 <input id="registerEmail" type="email" autocomplete="email" placeholder="Email"
-                       style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px;">
+                       style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; box-sizing: border-box;">
                 <input id="registerPassword" type="password" autocomplete="new-password" placeholder="Contraseña (mínimo 8 caracteres)"
-                       style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px;">
+                       style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: inherit; font-size: 14px; box-sizing: border-box;">
                 <div id="registerError" style="display: none; color: #ff4757; font-size: 13px; margin-bottom: 10px; text-align: center;"></div>
                 <button id="registerBtn" style="width: 100%; padding: 12px; background: #e77bd5; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; margin-bottom: 10px;">
                     Registrarse
@@ -294,6 +294,32 @@
                     </div>
 
                     <button id="saveProfileBtn" type="button" class="main-button profile-save-btn">Guardar perfil</button>
+                    
+                    <!-- Legacy Data Migration Section -->
+                    <div id="legacyMigrationSection" class="profile-migration-section">
+                        <h3>🔄 Migración de Datos</h3>
+                        <p>Herramienta para vincular actividades a tu cuenta:</p>
+                        
+                        <div class="migration-selector">
+                            <label for="legacyUserSelect" style="display: block; margin-bottom: 8px; font-weight: 500; color: #667eea;">
+                                Selecciona el usuario a vincular:
+                            </label>
+                            <select id="legacyUserSelect" class="legacy-user-select">
+                                <option value="">Cargando usuarios...</option>
+                            </select>
+                        </div>
+                        
+                        <div id="migrationInfo" class="migration-info" style="display: none;"></div>
+                        
+                        <div style="display: flex; gap: 10px; margin-top: 15px;">
+                            <button id="checkMigrationBtn" type="button" class="main-button migration-btn" style="flex: 1;">
+                                🔗 Vincular Datos
+                            </button>
+                            <button id="showAllUsersBtn" type="button" class="main-button migration-btn-secondary" style="flex: 1;">
+                                👥 Ver Todos los Usuarios
+                            </button>
+                        </div>
+                    </div>
                     
                     <div class="profile-danger-zone">
                         <h3>Zona de peligro</h3>
